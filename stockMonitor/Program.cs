@@ -1,6 +1,7 @@
-﻿using System.Threading;
-using System.Text;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
+using System;
+using System.Net.Mail;
+using System.Net;
 using YahooFinanceApi;
 
 namespace stockMonitor
@@ -31,12 +32,22 @@ namespace stockMonitor
                         // Lógica para mandar os emails dependendo do preço
                         if (price < lowerPrice && !emailSent)
                         {
-                            Console.WriteLine("Mandar o email recomendando a compra");
+                            var ticker = stock.GetStockLongName(symbol);
+                            string bodyEmail = "O ativo da empresa " + ticker.Result + ", papel " + symbol + ", está abaixo do preço " +
+                                "mínimo setado de R$" + lowerPrice + ". No momento deste email a ação vale R$" + price + " e " +
+                                "recomenda-se a compra do ativo.";
+                            EmailSender emailSender = new EmailSender();
+                            emailSender.SendEmail(bodyEmail);
                             emailSent = true;
                         }
                         if (price > higherPrice && !emailSent)
                         {
-                            Console.WriteLine("Mandar o email recomendando a venda");
+                            var ticker = stock.GetStockLongName(symbol);
+                            string bodyEmail = "O ativo da empresa " + ticker.Result + ", papel " + symbol + ", está acima do preço " +
+                                "máximo setado de R$" + higherPrice + ". No momento deste email a ação vale R$" + price + " e " +
+                                "recomenda-se a venda do ativo.";
+                            EmailSender emailSender = new EmailSender();
+                            emailSender.SendEmail(bodyEmail);
                             emailSent = true;
                         }
                         if (price >= lowerPrice && price <= higherPrice) emailSent = false;
@@ -46,7 +57,7 @@ namespace stockMonitor
             }
             else
             {
-                Console.WriteLine("Forneça 3 argumentos: O nome do ativo e dois números [Range de preço a ser monitorado em R$]");
+                throw new ArgumentException("Forneça 3 argumentos: O nome do ativo e dois números (Range de preço a ser monitorado em R$)");
             }
         }
     }
@@ -87,7 +98,7 @@ public class StockData
 }
 
 
-// Parsear os argumentos pra double e retorna maior/menor
+// Parsear os argumentos pra double e retorna o maior/menor independente da ordem do input
 public class PriceParser
 {
     public static (double lowerPrice, double higherPrice) GetLowerAndHigherValues(string str1, string str2)
@@ -101,7 +112,79 @@ public class PriceParser
         }
         else
         {
-            throw new ArgumentException("Range de preços inválido: Forneça dois números após o nome do ativo.");
+            throw new ArgumentException("Range de preços inválido: Forneça dois números após o nome do ativo no terminal.");
         }
+    }
+}
+
+// Classe para enviar os emails
+public class EmailSender
+{
+    private readonly string smtpServer;
+    private readonly int smtpPort;
+    private readonly string smtpUsername;
+    private readonly string smtpPassword;
+    private readonly string to;
+    private readonly string subject;
+
+    public EmailSender()
+    {
+        // Load SMTP configuration from configurations.json
+        var config = LoadSmtpConfiguration();
+        smtpServer = config.SmtpServer;
+        smtpPort = config.SmtpPort;
+        smtpUsername = config.SenderEmail;
+        smtpPassword = config.Key;
+        to = config.DestinationEmail;
+        subject = config.SubjectEmail;
+    }
+
+    public void SendEmail(string body)
+    {
+        try
+        {
+            MailMessage mail = new MailMessage();
+            mail.From = new MailAddress(smtpUsername);
+            mail.To.Add(to);
+            mail.Subject = subject;
+            mail.Body = body;
+
+            using (var client = new SmtpClient(smtpServer, smtpPort))
+            {
+                client.UseDefaultCredentials = false;
+                client.EnableSsl = true;
+                client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
+                client.Send(mail);               
+            }
+            Console.WriteLine("E-mail enviado com sucesso.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Erro ao enviar o e-mail: " + ex.Message);
+        }
+    }
+
+    private SmtpConfiguration LoadSmtpConfiguration()
+    {
+        try
+        {
+            var json = File.ReadAllText("configurations.json");
+            return JsonConvert.DeserializeObject<SmtpConfiguration>(json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Erro ao ler configurações do arquivo JSON: " + ex.Message);
+            throw;
+        }
+    }
+
+    private class SmtpConfiguration
+    {
+        public string SmtpServer { get; set; }
+        public string Key { get; set; }
+        public int SmtpPort { get; set; }
+        public string SenderEmail { get; set; }
+        public string DestinationEmail { get; set; }
+        public string SubjectEmail { get; set; }
     }
 }
