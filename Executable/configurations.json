@@ -1,0 +1,8 @@
+{
+  "SmtpServer": "smtp.gmail.com",
+  "smtpPort" :  587,
+  "senderEmail": "marcelversiani25@gmail.com",
+  "key": "yfndccvypykkvfny",
+  "destinationEmail": "marcbr040@hotmail.com",
+  "subjectEmail": "Alerta de monitoramento de ativo."
+}
